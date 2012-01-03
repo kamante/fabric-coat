@@ -1,0 +1,5 @@
+README
+setup.py
+src/coat/__init__.py
+src/coat/django.py
+src/coat/wordpress.py
