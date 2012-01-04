@@ -4,7 +4,7 @@ import re
 import tempfile
 import shutil
 
-from fabric.api import run, local, get, cd, lcd, settings, hide
+from fabric.api import run, local, get, cd, lcd, put
 from fabric.state import env
 from fabric.operations import require
 
@@ -12,7 +12,8 @@ from .base import get_local_base_dir
 
 
 __all__ = ("update_env", "download_uploads_from_remote",
-           "download_database_from_remote", "update_database_from_remote",
+           "upload_uploads_to_remote", "download_database_from_remote",
+           "update_database_from_remote", "update_database_on_remote",
            "deploy")
 
 
@@ -49,10 +50,16 @@ def download_uploads_from_remote():
     require("base_dir", provided_by=("env_test", "env_live"),
             used_for='defining the deploy environment')
 
-    wp_config = read_config()
-
     with lcd(os.path.join(env.local_base_dir, env.local_wordpress_path)):
         local('rsync -a %s@%s:%s/%s/wp-content/uploads/ wp-content/uploads/' % (env.user, env.host, env.base_dir, env.wordpress_path))
+
+
+def upload_uploads_to_remote():
+    require("base_dir", provided_by=("env_test", "env_live"),
+            used_for='defining the deploy environment')
+
+    with lcd(os.path.join(env.local_base_dir, env.local_wordpress_path)):
+        local('rsync -a wp-content/uploads/* %s@%s:%s/%s/wp-content/uploads/' % (env.user, env.host, env.base_dir, env.wordpress_path))
 
 
 def download_database_from_remote():
@@ -74,7 +81,7 @@ def update_database_from_remote():
     dump_file, _ = tempfile.mkstemp()
 
     run("mysqldump -u%(DB_USER)s -p%(DB_PASSWORD)s -h%(DB_HOST)s --add-drop-table %(DB_NAME)s > /tmp/%(DB_USER)s.sql" % wp_config['remote'])
-    get("/tmp/%(DB_USER)s.sql" % wp_config['remote'], "%(DB_USER)s.sql" % wp_config['remote'])
+    get("/tmp/%(DB_USER)s.sql" % wp_config['remote'], dump_file)
     run("rm -f /tmp/%(DB_USER)s.sql" % wp_config['remote'])
 
     wp_config['local']['dump_file'] = dump_file
@@ -82,6 +89,20 @@ def update_database_from_remote():
     local('mysql -u%(DB_USER)s -p%(DB_PASSWORD)s -h%(DB_HOST)s %(DB_NAME)s < %(dump_file)s' % wp_config['local'])
 
     os.unlink(dump_file)
+
+
+def update_database_on_remote():
+    require("base_dir", provided_by=("env_test", "env_live"),
+            used_for='defining the deploy environment')
+
+    wp_config = read_config()
+
+    local("mysqldump -u%(DB_USER)s -p%(DB_PASSWORD)s -h%(DB_HOST)s --add-drop-table %(DB_NAME)s > /tmp/%(DB_USER)s.sql" % wp_config['local'])
+    put("/tmp/%(DB_USER)s.sql" % wp_config['local'], "/tmp/%(DB_USER)s.sql" % wp_config['remote'])
+    os.unlink("/tmp/%(DB_USER)s.sql" % wp_config['local'])
+
+    run('mysql -u%(DB_USER)s -p%(DB_PASSWORD)s -h%(DB_HOST)s %(DB_NAME)s < /tmp/%(DB_USER)s.sql' % wp_config['remote'])
+    run("rm -f /tmp/%(DB_USER)s.sql" % wp_config['remote'])
 
 
 def deploy():
