@@ -10,6 +10,9 @@ from fabric.state import env
 from .base import get_local_base_dir
 
 
+__all__ = ("update_env", "bootstrap", "deploy")
+
+
 def update_env(*args, **kwargs):
     env.update_env = True
     env.migrate = True
