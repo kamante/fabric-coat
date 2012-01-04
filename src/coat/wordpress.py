@@ -29,7 +29,7 @@ def update_env(*args, **kwargs):
 def parse_config_from_file(settings_file):
     lines = open(settings_file).read()
 
-    define_re = re.compile(r"""define\(["'](?P<key>[^'"]+)["'],\s*["'](?P<value>[^'"]+)["']\)""", re.S | re.M)
+    define_re = re.compile(r"""define\(["'](?P<key>[^'"]+)["'],\s*["'](?P<value>[^'"]*)["']\)""", re.S | re.M)
 
     return dict(define_re.findall(lines))
 
