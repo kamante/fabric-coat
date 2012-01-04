@@ -9,6 +9,17 @@ from fabric.operations import require
 from fabric.state import env
 
 
+def update_env( *args, **kwargs):
+    for key, value in kwargs.iteritems():
+        setattr(env, key, value)
+
+    env.versions_dir = env.base_dir + "/versions"
+    env.update_env = True
+    env.migrate = True
+    env.syncdb = True
+    env.wsgi_file = env.django_appname + ".wsgi"
+
+
 def copy_revision(current_revision, revision):
     # test remote for the revision and skip re-copying already
     # existing revisions
@@ -91,8 +102,9 @@ def deploy(revision="HEAD"):
             used_for="defining the deploy environment")
 
     # resolve the incoming treeish hashref to an actual git revlog
-    with hide("running"):
-        revision = local("git log -1 --format=%%h %s" % revision, capture=True)
+    with cd(env.local_base_dir):
+        with hide("running"):
+            revision = local("git log -1 --format=%%h %s" % revision, capture=True)
 
     # resolve the last delpoyed revision - will be None if first deployment
     current_revision = version_resolve_current()
