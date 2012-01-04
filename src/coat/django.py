@@ -1,4 +1,6 @@
 from __future__ import with_statement
+from django.core.management import setup_environ
+import os, sys
 
 import os
 import tempfile
@@ -10,14 +12,17 @@ from fabric.state import env
 
 
 def update_env( *args, **kwargs):
+    env.update_env = True
+    env.migrate = True
+    env.syncdb = True
+
     for key, value in kwargs.iteritems():
         setattr(env, key, value)
 
     env.versions_dir = env.base_dir + "/versions"
-    env.update_env = True
-    env.migrate = True
-    env.syncdb = True
-    env.wsgi_file = env.django_appname + ".wsgi"
+
+    if not hasattr(env, 'wsgi_file'):
+        env.wsgi_file = env.django_appname + ".wsgi"
 
 
 def copy_revision(current_revision, revision):
