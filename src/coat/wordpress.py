@@ -8,33 +8,80 @@ from fabric.api import run, local, get, cd, lcd, settings, hide
 from fabric.state import env
 from fabric.operations import require
 
-#env.local_base_dir = os.path.dirname(os.path.abspath(__file__))
+from .base import get_local_base_dir
 
-def get_wordpress_settings(settings_file):
-    lines = open(os.path.join(env.local_base_dir, 'php', 'public_html', settings_file)).read()
+
+__all__ = ("update_env", "download_uploads_from_remote",
+           "download_database_from_remote", "update_database_from_remote",
+           "deploy")
+
+
+def update_env(*args, **kwargs):
+    env.wordpress_path = "public_html"
+
+    env.update(kwargs)
+
+    if 'local_base_dir' not in env:
+        env.local_base_dir = get_local_base_dir()
+
+
+def parse_config_from_file(settings_file):
+    lines = open(settings_file).read()
 
     define_re = re.compile(r"""define\(["'](?P<key>[^'"]+)["'],\s*["'](?P<value>[^'"]+)["']\)""", re.S | re.M)
 
     return dict(define_re.findall(lines))
 
 
-def update_from_remote():
-    require('base_dir', provided_by=("env_test", "env_live"),
+def read_config():
+    """
+    Returns a dict of the current local and remote wordpress settings.
+    """
+    wordpress_path = os.path.join(env.local_base_dir, env.local_wordpress_path)
+
+    return {
+        'local': parse_config_from_file(os.path.join(wordpress_path, "wp-config.php")),
+        'remote': parse_config_from_file(os.path.join(wordpress_path, env.settings_file))
+    }
+
+
+def download_uploads_from_remote():
+    require("base_dir", provided_by=("env_test", "env_live"),
             used_for='defining the deploy environment')
 
-    wp_settings = get_wordpress_settings(env.settings_file)
-    local_wp_settings = get_wordpress_settings(os.path.join(env.local_base_dir, 'php', 'public_html', 'wp-config.php'))
+    wp_config = read_config()
 
-    with lcd(os.path.join(env.local_base_dir, 'php', 'public_html')):
-        local('rsync -a %s@%s:%s/public_html/wp-content/uploads/ wp-content/uploads/' % (env.user, env.host, env.base_dir))
+    with lcd(os.path.join(env.local_base_dir, env.local_wordpress_path)):
+        local('rsync -a %s@%s:%s/%s/wp-content/uploads/ wp-content/uploads/' % (env.user, env.host, env.base_dir, env.wordpress_path))
 
-    run('mysqldump -u%(DB_USER)s -p%(DB_PASSWORD)s -h%(DB_HOST)s --add-drop-table %(DB_NAME)s > /tmp/%(DB_USER)s.sql' % wp_settings)
-    get('/tmp/%(DB_USER)s.sql' % wp_settings, '/tmp/%(path)s')
-    run('rm -f /tmp/%(DB_USER)s.sql' % wp_settings)
-    local_wp_settings['remote_file'] = '/tmp/%(DB_USER)s' % wp_settings
 
-    local('mysql -u%(DB_USER)s -p%(DB_PASSWORD)s -h%(DB_HOST)s %(DB_NAME)s < %(remote_file)s.sql' % local_wp_settings)
-    local('rm -f /tmp/%(DB_USER)s.sql' % wp_settings)
+def download_database_from_remote():
+    require("base_dir", provided_by=("env_test", "env_live"),
+            used_for='defining the deploy environment')
+
+    wp_config = read_config()
+
+    run("mysqldump -u%(DB_USER)s -p%(DB_PASSWORD)s -h%(DB_HOST)s --add-drop-table %(DB_NAME)s > /tmp/%(DB_USER)s.sql" % wp_config['remote'])
+    get("/tmp/%(DB_USER)s.sql" % wp_config['remote'], os.path.join(env.local_base_path, env.local_wordpress_path, "%(DB_USER)s.sql" % wp_config['remote']))
+    run("rm -f /tmp/%(DB_USER)s.sql" % wp_config['remote'])
+
+
+def update_database_from_remote():
+    require("base_dir", provided_by=("env_test", "env_live"),
+            used_for='defining the deploy environment')
+
+    wp_config = read_config()
+    dump_file, _ = tempfile.mkstemp()
+
+    run("mysqldump -u%(DB_USER)s -p%(DB_PASSWORD)s -h%(DB_HOST)s --add-drop-table %(DB_NAME)s > /tmp/%(DB_USER)s.sql" % wp_config['remote'])
+    get("/tmp/%(DB_USER)s.sql" % wp_config['remote'], "%(DB_USER)s.sql" % wp_config['remote'])
+    run("rm -f /tmp/%(DB_USER)s.sql" % wp_config['remote'])
+
+    wp_config['local']['dump_file'] = dump_file
+
+    local('mysql -u%(DB_USER)s -p%(DB_PASSWORD)s -h%(DB_HOST)s %(DB_NAME)s < %(dump_file)s' % wp_config['local'])
+
+    os.unlink(dump_file)
 
 
 def deploy():
@@ -44,17 +91,14 @@ def deploy():
     deploy_archive_dir = tempfile.mkdtemp()
 
     with lcd(env.local_base_dir):
-        local('git archive master php | tar -x -f- -C %s' % (deploy_archive_dir))
+        local('git archive master %s | tar -x -f- -C %s' % (env.local_wordpress_path, deploy_archive_dir))
 
-    local('rsync -a --exclude wp-config.php %s/php/* %s@%s:%s/' % (deploy_archive_dir, env.user, env.host, env.base_dir))
+    local('rsync -a --exclude wp-config.php --exclude wp-content/uploads/* %s/%s/* %s@%s:%s/%s' %
+          (deploy_archive_dir, env.local_wordpress_path, env.user, env.host,
+           env.base_dir, env.wordpress_path))
 
-    if env.settings_file:
-        with cd(os.path.join(env.base_dir, 'public_html')):
+    with cd(os.path.join(env.base_dir, env.wordpress_path)):
+        if env.settings_file:
             run('cp %s wp-config.php' % env.settings_file)
-
-            with settings(warn_only=True):
-                with hide('stderr', 'stdout'):
-                    run('chmod -R 777 wp-content/uploads/')
-                    run('chmod -R 777 wp-content/themes/')
 
     shutil.rmtree(deploy_archive_dir)

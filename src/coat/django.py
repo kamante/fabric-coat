@@ -1,12 +1,29 @@
 from __future__ import with_statement
 
-import os
 import tempfile
 import shutil
 
 from fabric.api import run, local, cd, settings, lcd, prefix, hide
 from fabric.operations import require
 from fabric.state import env
+
+from .base import get_local_base_dir
+
+
+def update_env(*args, **kwargs):
+    env.update_env = True
+    env.migrate = True
+    env.syncdb = True
+
+    env.update(kwargs)
+
+    env.versions_dir = env.base_dir + "/versions"
+
+    if 'wsgi_file' in env:
+        env.wsgi_file = env.django_appname + ".wsgi"
+
+    if 'local_base_dir' not in env:
+        env.local_base_dir = get_local_base_dir()
 
 
 def copy_revision(current_revision, revision):
@@ -91,8 +108,9 @@ def deploy(revision="HEAD"):
             used_for="defining the deploy environment")
 
     # resolve the incoming treeish hashref to an actual git revlog
-    with hide("running"):
-        revision = local("git log -1 --format=%%h %s" % revision, capture=True)
+    with cd(env.local_base_dir):
+        with hide("running"):
+            revision = local("git log -1 --format=%%h %s" % revision, capture=True)
 
     # resolve the last delpoyed revision - will be None if first deployment
     current_revision = version_resolve_current()
