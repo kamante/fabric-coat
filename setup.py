@@ -11,9 +11,9 @@ def read(fname):
 
 setup(
     name = "fabric-coat",
-    version = "0.1",
-    author = "Rasmus Schlünsen",
-    author_email = "rs@konstellation.dk",
+    version = "0.2",
+    author = "Rasmus Schlünsen, Mads Sülau Jørgensen",
+    author_email = "rs@konstellation.dk, msj@konstellation.dk",
     description = ("Deployment helpers for fabric"),
     license = "BSD",
     keywords = "fabric coat deployment rsync helper",
@@ -21,5 +21,5 @@ setup(
     packages=['coat', ],
     long_description=read('README'),
     package_dir = {'': 'src'},
-    install_requires = ['fabric >= 1.0'],
+    install_requires = ['fabric >= 1.3'],
 )
