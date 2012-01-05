@@ -111,7 +111,7 @@ def deploy(revision="HEAD"):
             used_for="defining the deploy environment")
 
     # resolve the incoming treeish hashref to an actual git revlog
-    with cd(env.local_base_dir):
+    with lcd(env.local_base_dir):
         with hide("running"):
             revision = local("git log -1 --format=%%h %s" % revision, capture=True)
 
