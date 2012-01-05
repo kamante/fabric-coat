@@ -81,7 +81,7 @@ def update_database_from_remote():
             used_for='defining the deploy environment')
 
     wp_config = read_config()
-    dump_file, _ = tempfile.mkstemp()
+    _, dump_file = tempfile.mkstemp()
 
     run("mysqldump -u%(DB_USER)s -p%(DB_PASSWORD)s -h%(DB_HOST)s --add-drop-table %(DB_NAME)s > /tmp/%(DB_USER)s.sql" % wp_config['remote'])
     get("/tmp/%(DB_USER)s.sql" % wp_config['remote'], dump_file)
