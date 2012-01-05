@@ -16,6 +16,9 @@ def backup_prune():
 
     backup_path = os.path.join(env.local_base_dir, env.backup_path)
 
+    if not os.path.exists(backup_path):
+        return
+
     wanted = []
 
     for entry in os.listdir(backup_path):
