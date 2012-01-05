@@ -1,14 +1,17 @@
 from __future__ import with_statement
+
 import os
 import re
 import tempfile
 import shutil
 
+from datetime import datetime
+
 from fabric.api import run, local, get, cd, lcd, put
 from fabric.state import env
 from fabric.operations import require
 
-from .base import get_local_base_dir
+from .base import get_local_base_dir, backup_create_local
 
 
 __all__ = ("update_env", "download_uploads_from_remote",
@@ -19,11 +22,16 @@ __all__ = ("update_env", "download_uploads_from_remote",
 
 def update_env(*args, **kwargs):
     env.wordpress_path = "public_html"
+    env.backup_prefix = "%Y%m%d-%H%m%S"
+    env.backup_path = "backups"
 
     env.update(kwargs)
 
     if 'local_base_dir' not in env:
         env.local_base_dir = get_local_base_dir()
+
+    if env.backup_prefix:
+        env.backup_prefix = datetime.now().strftime(env.backup_prefix)
 
 
 def parse_config_from_file(settings_file):
@@ -51,7 +59,11 @@ def download_uploads_from_remote():
             used_for='defining the deploy environment')
 
     with lcd(os.path.join(env.local_base_dir, env.local_wordpress_path)):
-        local('rsync -a %s@%s:%s/%s/wp-content/uploads/ wp-content/uploads/' % (env.user, env.host, env.base_dir, env.wordpress_path))
+        backup_create_local("wp-content/uploads")
+
+        local("rsync -a "
+              "%(user)s@%(host)s:%(base_dir)s/%(wordpress_path)s/wp-content/uploads/ "
+              "wp-content/uploads/" % env)
 
 
 def upload_uploads_to_remote():
@@ -59,7 +71,8 @@ def upload_uploads_to_remote():
             used_for='defining the deploy environment')
 
     with lcd(os.path.join(env.local_base_dir, env.local_wordpress_path)):
-        local('rsync -a wp-content/uploads/* %s@%s:%s/%s/wp-content/uploads/' % (env.user, env.host, env.base_dir, env.wordpress_path))
+        local("rsync -a wp-content/uploads/* "
+              "%(user)s@%(host)s:%(base_dir)s/%(wordpress_path)s/wp-content/uploads/" % env)
 
 
 def download_database_from_remote():
@@ -78,17 +91,25 @@ def update_database_from_remote():
             used_for='defining the deploy environment')
 
     wp_config = read_config()
-    dump_file, _ = tempfile.mkstemp()
+    dump_filename = "/tmp/%(DB_USER)s_%(DB_NAME)s.sql" % wp_config['remote']
 
-    run("mysqldump -u%(DB_USER)s -p%(DB_PASSWORD)s -h%(DB_HOST)s --add-drop-table %(DB_NAME)s > /tmp/%(DB_USER)s.sql" % wp_config['remote'])
-    get("/tmp/%(DB_USER)s.sql" % wp_config['remote'], dump_file)
-    run("rm -f /tmp/%(DB_USER)s.sql" % wp_config['remote'])
+    wp_config['remote']['dump_filename'] = dump_filename
+    wp_config['local']['dump_filename'] = dump_filename
 
-    wp_config['local']['dump_file'] = dump_file
+    with lcd(env.local_base_dir):
+        local("mysqldump -u%(DB_USER)s -p%(DB_PASSWORD)s -h%(DB_HOST)s --add-drop-table %(DB_NAME)s | gzip > %(DB_NAME)s.sql.gz" % wp_config['local'])
 
-    local('mysql -u%(DB_USER)s -p%(DB_PASSWORD)s -h%(DB_HOST)s %(DB_NAME)s < %(dump_file)s' % wp_config['local'])
+        backup_create_local("%(DB_NAME)s.sql.gz" % wp_config['local'])
 
-    os.unlink(dump_file)
+        run("rm -f %(DB_NAME)s.sql.gz" % wp_config['local'])
+
+    run("mysqldump -u%(DB_USER)s -p%(DB_PASSWORD)s -h%(DB_HOST)s --add-drop-table %(DB_NAME)s > %(dump_filename)s" % wp_config['remote'])
+    get(dump_filename, dump_filename)
+    run("rm -f %s" % dump_filename)
+
+    local("mysql -u%(DB_USER)s -p%(DB_PASSWORD)s -h%(DB_HOST)s %(DB_NAME)s < %(dump_filename)s" % wp_config['local'])
+
+    os.unlink(dump_filename)
 
 
 def update_database_on_remote():
@@ -101,7 +122,11 @@ def update_database_on_remote():
     put("/tmp/%(DB_USER)s.sql" % wp_config['local'], "/tmp/%(DB_USER)s.sql" % wp_config['remote'])
     os.unlink("/tmp/%(DB_USER)s.sql" % wp_config['local'])
 
-    run('mysql -u%(DB_USER)s -p%(DB_PASSWORD)s -h%(DB_HOST)s %(DB_NAME)s < /tmp/%(DB_USER)s.sql' % wp_config['remote'])
+    wp_config['remote']['backup_name'] = "%(DB_USER)s_%(DB_NAME)s" % wp_config['remote']
+
+    run("mysqldump -u%(DB_USER)s -p%(DB_PASSWORD)s -h%(DB_HOST)s --add-drop-table %(DB_NAME)s | gzip > /tmp/%(backup_name)s.sql.gz" % wp_config['remote'])
+
+    run("mysql -u%(DB_USER)s -p%(DB_PASSWORD)s -h%(DB_HOST)s %(DB_NAME)s < /tmp/%(DB_USER)s.sql" % wp_config['remote'])
     run("rm -f /tmp/%(DB_USER)s.sql" % wp_config['remote'])
 
 
