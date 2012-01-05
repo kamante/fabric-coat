@@ -10,6 +10,7 @@ from datetime import datetime
 from fabric.api import run, local, get, cd, lcd, put
 from fabric.state import env
 from fabric.operations import require
+from fabric.contrib.console import confirm
 
 from .base import get_local_base_dir, backup_create_local
 
@@ -70,6 +71,8 @@ def upload_uploads_to_remote():
     require("base_dir", provided_by=("env_test", "env_live"),
             used_for='defining the deploy environment')
 
+    confirm("This will override data on remote. Are you sure?", default=False)
+
     with lcd(os.path.join(env.local_base_dir, env.local_wordpress_path)):
         local("rsync -a wp-content/uploads/* "
               "%(user)s@%(host)s:%(base_dir)s/%(wordpress_path)s/wp-content/uploads/" % env)
@@ -115,6 +118,8 @@ def update_database_from_remote():
 def update_database_on_remote():
     require("base_dir", provided_by=("env_test", "env_live"),
             used_for='defining the deploy environment')
+
+    confirm("This will override data on remote. Are you sure?", default=False)
 
     wp_config = read_config()
 
