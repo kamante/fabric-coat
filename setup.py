@@ -11,7 +11,7 @@ def read(fname):
 
 setup(
     name = "fabric-coat",
-    version = "0.3.0",
+    version = "0.3.1",
     author = "Rasmus Schlünsen, Mads Sülau Jørgensen",
     author_email = "rs@konstellation.dk, msj@konstellation.dk",
     description = ("Deployment helpers for fabric"),
