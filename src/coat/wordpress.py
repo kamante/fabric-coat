@@ -7,6 +7,7 @@ import shutil
 from fabric.api import run, local, get, cd, lcd, put
 from fabric.state import env
 from fabric.operations import require
+from fabric.contrib.console import confirm
 
 from .base import get_local_base_dir
 
@@ -58,6 +59,8 @@ def upload_uploads_to_remote():
     require("base_dir", provided_by=("env_test", "env_live"),
             used_for='defining the deploy environment')
 
+    confirm("This will override data on remote. Are you sure?", default=False)
+
     with lcd(os.path.join(env.local_base_dir, env.local_wordpress_path)):
         local('rsync -a wp-content/uploads/* %s@%s:%s/%s/wp-content/uploads/' % (env.user, env.host, env.base_dir, env.wordpress_path))
 
@@ -78,7 +81,7 @@ def update_database_from_remote():
             used_for='defining the deploy environment')
 
     wp_config = read_config()
-    dump_file, _ = tempfile.mkstemp()
+    _, dump_file = tempfile.mkstemp()
 
     run("mysqldump -u%(DB_USER)s -p%(DB_PASSWORD)s -h%(DB_HOST)s --add-drop-table %(DB_NAME)s > /tmp/%(DB_USER)s.sql" % wp_config['remote'])
     get("/tmp/%(DB_USER)s.sql" % wp_config['remote'], dump_file)
@@ -94,6 +97,8 @@ def update_database_from_remote():
 def update_database_on_remote():
     require("base_dir", provided_by=("env_test", "env_live"),
             used_for='defining the deploy environment')
+
+    confirm("This will override data on remote. Are you sure?", default=False)
 
     wp_config = read_config()
 
