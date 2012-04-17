@@ -6,14 +6,22 @@ import shutil
 from fabric.api import run, local, cd, settings, lcd, prefix, hide
 from fabric.operations import require
 from fabric.state import env
+from fabric.utils import abort, warn
 
 from .base import get_local_base_dir
+from .settings import RemoteSettings, LocalSettings
 
 
 __all__ = ("update_env", "bootstrap", "deploy")
 
 
-def update_env(*args, **kwargs):
+def update_env(local, remote):
+    if not isinstance(local, LocalSettings):
+        abort("%r is not a LocalSettings" % local)
+
+    if not isinstance(remote, RemoteSettings):
+        abort("%r is not a RemoteSettings" % remote)
+
     env.update_env = True
     env.migrate = True
     env.syncdb = True
