@@ -35,8 +35,17 @@ def deploy():
     with lcd(env.local_base_dir):
         local('git archive master %s | tar -x -f- -C %s' % (env.local_path, deploy_archive_dir))
 
-    local('rsync -a --exclude config.php  %s/%s/* %s@%s:%s/%s' %
+    if 'settings_file' in env:
+        command = 'rsync -a --exclude config.php  %s/%s/* %s@%s:%s/%s'
+    else:
+        command = 'rsync -a %s/%s/* %s@%s:%s/%s'
+
+    local(command %
           (deploy_archive_dir, env.local_path, env.user, env.host,
-           env.base_dir, env.local_path))
+           env.base_dir, env.remote_path))
+
+    with cd(os.path.join(env.base_dir, env.remote_path)):
+        if env.settings_file:
+            run('cp %s config.php' % env.settings_file)
 
     shutil.rmtree(deploy_archive_dir)
