@@ -11,7 +11,7 @@ class DjangoSettings(Settings):
     A settings object for Django based settings.
     """
     DEFAULT_MANAGEMENT_COMMANDS = [
-        'syncdb',
+        'syncdb --noinput',
         'migrate'
     ]
 
