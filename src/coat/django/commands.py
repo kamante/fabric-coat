@@ -8,20 +8,12 @@ from fabric.operations import require
 from fabric.state import env
 from fabric.utils import abort, warn
 
-from .base import get_local_base_dir
-from .settings import RemoteSettings, LocalSettings
-
-
-__all__ = ("update_env", "bootstrap", "deploy")
+from coat.base import get_local_base_dir
+from coat.settings import SSHHostSettings
+from coat.django.settings import DjagnoSettings
 
 
 def update_env(local, remote):
-    if not isinstance(local, LocalSettings):
-        abort("%r is not a LocalSettings" % local)
-
-    if not isinstance(remote, RemoteSettings):
-        abort("%r is not a RemoteSettings" % remote)
-
     env.update_env = True
     env.migrate = True
     env.syncdb = True
@@ -134,3 +126,4 @@ def deploy(revision="HEAD"):
     # activate the new version - this might break migrations as
     # auto detecting the difference would be hard
     activate_revision(revision)
+
