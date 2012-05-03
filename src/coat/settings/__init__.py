@@ -1,4 +1,3 @@
-from django.core.validators import MinLengthValidator
 from django.core.exceptions import ValidationError
 
 from fabric.utils import abort
@@ -76,17 +75,3 @@ class Settings(dict):
             )
 
         return len(missing) == 0
-
-
-class SSHHostSettings(Settings):
-    """
-    A setting object for SSH host settings.
-    """
-    defaults = {
-        'port': 22,
-    }
-
-    required = {
-        'host': MinLengthValidator(1),
-        'user': MinLengthValidator(1),
-    }

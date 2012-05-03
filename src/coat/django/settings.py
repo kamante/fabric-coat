@@ -8,7 +8,7 @@ __all__ = ("DjangoSettings", )
 
 class DjangoSettings(Settings):
     """
-    A settings object for Django based settings.
+    A settings object for a Django project.
     """
     DEFAULT_MANAGEMENT_COMMANDS = [
         'syncdb --noinput',

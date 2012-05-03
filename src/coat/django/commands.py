@@ -8,25 +8,8 @@ from fabric.operations import require
 from fabric.state import env
 from fabric.utils import abort, warn
 
-from coat.base import get_local_base_dir
-from coat.settings import SSHHostSettings
+from coat.utils import get_fabfile_dirname
 from coat.django.settings import DjagnoSettings
-
-
-def update_env(local, remote):
-    env.update_env = True
-    env.migrate = True
-    env.syncdb = True
-
-    env.update(kwargs)
-
-    env.versions_dir = env.base_dir + "/versions"
-
-    if 'wsgi_file' in env:
-        env.wsgi_file = env.django_appname + ".wsgi"
-
-    if 'local_base_dir' not in env:
-        env.local_base_dir = get_local_base_dir()
 
 
 def copy_revision(current_revision, revision):
