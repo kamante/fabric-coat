@@ -1,9 +1,9 @@
 from django.core.exceptions import ValidationError
 
-from fabric.utils import abort
+from fabric.utils import abort, _AttributeDict
 
 
-class Settings(dict):
+class Settings(_AttributeDict):
     """
     Object that holds setting items and a method of validating required
     settings.
@@ -16,7 +16,7 @@ class Settings(dict):
     validated.
     """
     def __init__(self, **kwargs):
-        super(dict, self).__init__()
+        super(self.__class__, self).__init__()
 
         self.update_and_replace(self.defaults)
         self.update_and_replace(kwargs)

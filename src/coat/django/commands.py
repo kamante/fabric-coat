@@ -1,112 +1,124 @@
 from __future__ import with_statement
 
-import tempfile
+import os
 import shutil
+import glob
 
-from fabric.api import run, local, cd, settings, lcd, prefix, hide
+from fabric.api import run, local, cd, settings, prefix, hide
 from fabric.operations import require
 from fabric.state import env
-from fabric.utils import abort, warn
 
-from coat.utils import get_fabfile_dirname
-from coat.django.settings import DjagnoSettings
+from coat.utils import remote_resolve_current_revision, \
+        local_resolve_revision, workdir_prepare
+
+from coat.django.utils import find_manage, find_django_appname
+from coat.django import signals
 
 
-def copy_revision(current_revision, revision):
+def copy_revision_to_remote(workdir, remote_revision, deploy_revision):
     # test remote for the revision and skip re-copying already
     # existing revisions
     with settings(hide("stdout", "stderr", "warnings"), warn_only=True):
-        exists = run("test -d %s/%s && echo 1" % (env.versions_dir, revision))
+        exists = run("test -d %s/%s && echo 1" %
+                     (env.django_settings.versions_dir,
+                      deploy_revision))
 
     if exists == "1":
         return
 
-    # create a local temp directory and export a version of revision there
-    # and move files around
-    archive_dir = tempfile.mkdtemp()
-    with lcd(env.local_base_dir):
-        local("git archive %s django static | tar -x -C %s" % (revision, archive_dir))
-
-    if env.settings_file:
-        with lcd("%s/django/%s" % (archive_dir, env.django_appname)):
-            local("cp %s localsettings.py" % env.settings_file)
-
     # copy all of local onto remote using rsync, use hard links to save
     # space for unmodified files
-    rsync_cmd = "%s/* %s@%s:%s/%s/" % (archive_dir, env.user, env.host, env.versions_dir, revision)
-    if current_revision:
-        with cd(env.versions_dir):
+    rsync_cmd = ("%s/* %s@%s:%s/%s/" %
+                 (workdir, env.user, env.host,
+                  env.django_settings.versions_dir,
+                  deploy_revision))
+
+    signals.pre_workdir_copy_to_remote.send(
+        deploy_revision=deploy_revision,
+        remote_revision=remote_revision,
+        workdir=workdir,
+    )
+
+    if remote_revision:
+        with cd(env.django_settings.versions_dir):
             run("rsync -a --link-dest=../%(cur)s/ %(cur)s/ %(new)s" %
-                {'cur': current_revision, 'new': revision})
+                {'cur': remote_revision, 'new': deploy_revision})
 
         local("rsync -a -c --delete %s" % (rsync_cmd))
     else:
         local("rsync -a %s" % rsync_cmd)
 
-    shutil.rmtree(archive_dir)
+    signals.post_workdir_copy_to_remote.send(
+        deploy_revision=deploy_revision,
+        remote_revision=remote_revision,
+        workdir=workdir,
+    )
 
 
-def bootstrap():
-    require("base_dir", "versions_dir", provided_by=("env_test", "env_live"),
-            used_for="defining the deploy environment")
+def remote_activate_revision(workdir, remote_revision, deploy_revision):
+    django_appname = find_django_appname(workdir)
 
-    run("test -d %(base_dir)s || mkdir -p %(base_dir)s" % {"base_dir": env.base_dir})
-    run("test -d %(base_dir)s/env || virtualenv --no-site-packages %(base_dir)s/env" % {"base_dir": env.base_dir})
-    run("test -d %(versions_dir)s || mkdir -p %(versions_dir)s" % {"versions_dir": env.versions_dir})
+    remote_base_dir = "%s/../" % env.django_appname.versions_dir
+    remote_versions_dir = env.django_settings.versions_dir
 
+    signals.pre_remote_run_commands.send()
 
-def activate_revision(revision):
-    require("base_dir", "versions_dir", provided_by=("env_test", "env_live"),
-            used_for="defining the deploy environment")
+    with cd("%s/%s" % (remote_versions_dir, deploy_revision)):
+        with prefix("source /env/bin/activate" % remote_base_dir):
+            for command in env.virtualenv_settings.commands:
+                run(command)
 
-    with cd("%s/%s" % (env.versions_dir, revision)):
-        with prefix("source %s/env/bin/activate" % env.base_dir):
-            if env.update_env:
-                run("pip -q install -r django/requirements.txt")
+            with prefix("django/%s/manage.py " % django_appname):
+                for command in env.django_settings.management_commands:
+                    run(command)
 
-            if env.syncdb:
-                run("python django/%s/manage.py syncdb --noinput" % env.django_appname)
+    signals.post_remote_run_commands.send()
 
-            if env.migrate:
-                run("python django/%s/manage.py migrate" % env.django_appname)
+    signals.pre_remote_activate_revision.send()
 
-    with cd(env.versions_dir):
+    with cd(remote_versions_dir):
         with settings(hide("warnings", "stderr"), warn_only=True):
             run("test -L current && rm current")
 
-        run("ln -s %s current" % revision)
+        run("ln -s %s current" % deploy_revision)
+
+    signals.post_remote_activate_revision.send()
+
+
+def remote_reload():
+    signals.pre_remote_reload.send()
 
     with cd(env.base_dir):
         if env.wsgi_file:
             run("touch %s" % env.wsgi_file)
 
+    signals.post_remote_reload.send()
 
-def version_resolve_current():
-    revision = None
-    with cd(env.versions_dir):
-        with settings(hide("stderr", "running", "stdout", "warnings"), warn_only=True):
-            revision = run("readlink current")
-    return revision.rstrip("/") or None
+
+def workdir_django_prepare(workdir):
+    django_basedir = os.path.dirname(find_manage(workdir))
+
+    shutil.copy(
+        os.path.join(django_basedir, env.django_settings.settings_file),
+        os.path.join(django_basedir, "localsettings.py")
+    )
+
+    map(os.unlink, glob.glob("%s/localsettings_*.py" % django_basedir))
 
 
 def deploy(revision="HEAD"):
-    require("base_dir", "versions_dir", provided_by=("env_test", "env_live"),
-            used_for="defining the deploy environment")
+    require("django_settings", provided_by=("env_test", "env_live"))
 
-    # resolve the incoming treeish hashref to an actual git revlog
-    with lcd(env.local_base_dir):
-        with hide("running"):
-            revision = local("git log -1 --format=%%h %s" % revision, capture=True)
+    env.django_settings.validate_or_abort()
 
-    # resolve the last delpoyed revision - will be None if first deployment
-    current_revision = version_resolve_current()
+    env.remote_revision = remote_resolve_current_revision()
+    env.deploy_revision = local_resolve_revision(revision)
 
-    # create an archive of the revision, extract it on the remote
-    # server, and rsync the difference - will be skipped if revision
-    # already exists on remote
-    copy_revision(current_revision, revision)
+    env.deploy_workdir = workdir_prepare(revision, folders=("django", ))
 
-    # activate the new version - this might break migrations as
-    # auto detecting the difference would be hard
-    activate_revision(revision)
+    workdir_django_prepare(env.deploy_workdir)
 
+    copy_revision_to_remote(env.deploy_workdir, env.deploy_version)
+    remote_activate_revision(env.deploy_revision)
+
+    remote_reload()
