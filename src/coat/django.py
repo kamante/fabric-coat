@@ -22,7 +22,7 @@ def update_env(*args, **kwargs):
 
     env.versions_dir = env.base_dir + "/versions"
 
-    if 'wsgi_file' in env:
+    if 'wsgi_file' not in env:
         env.wsgi_file = env.django_appname + ".wsgi"
 
     if 'local_base_dir' not in env:
