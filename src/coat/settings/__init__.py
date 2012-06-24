@@ -16,18 +16,12 @@ class Settings(_AttributeDict):
     validated.
     """
     def __init__(self, **kwargs):
-        super(self.__class__, self).__init__()
+        super(Settings, self).__init__()
 
-        self.update_and_replace(self.defaults)
-        self.update_and_replace(kwargs)
+        self.update(self.defaults)
+        self.update(kwargs)
 
-    def update_and_replace(self, other=None, **kwargs):
-        """
-        Like normal `dict.update` except it allows for value string replacement
-        with already defined values in itself.
-
-        Can be called with another `dict`, `**kwargs` or both.
-        """
+    def resolve_all_keys(self):
         def replace(v):
             """
             Recursivly replace strings, dicts, tuples and lists.
@@ -43,18 +37,14 @@ class Settings(_AttributeDict):
             else:
                 return v
 
-        if other is None:
-            other = {}
-
-        if kwargs:
-            other.update(kwargs)
-
-        for key, value in other.iteritems():
+        for key, value in self.iteritems():
             self[key] = replace(value)
 
     def validate_or_abort(self):
         """
         Validate the values acording to the list of validators given.
+
+        Also resolves all values if validation was successful.
         """
         missing = []
 
@@ -65,13 +55,18 @@ class Settings(_AttributeDict):
             for validator in validators:
                 try:
                     validator(self[key])
-                except (ValueError, KeyError, ValidationError), exc:
-                    missing.append((key, str(exc)))
+                except KeyError:
+                    missing.append("* %s was not defined" % key)
+                except ValueError, exc:
+                    missing.append("* %s caused ValueError(%s)" % (key, exc))
+                except ValidationError, exc:
+                    missing.append("* %s failed validation - %s" % (
+                        key, "\n  * ".join(exc.messages)
+                    ))
 
         if len(missing) > 0:
             abort(
-                "missing (or invalid) settings %s for %r" %
-                (missing, self.__class__.__name__)
+                "missing (or invalid) settings:\n\n" + ("\n".join(missing))
             )
 
-        return len(missing) == 0
+        self.resolve_all_keys()

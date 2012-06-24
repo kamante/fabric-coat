@@ -5,7 +5,8 @@ import tempfile
 
 from fabric.state import env
 from fabric.api import lcd, local, hide, settings, cd, run
-from coat.signals import pre_workdir_checkout, post_workdir_checkout
+from fabric.contrib import files as fabric_files
+from coat import signals
 
 
 def get_project_root_directory():
@@ -24,7 +25,10 @@ def workdir_prepare_checkout(revision, folders):
 
     Dispatches signals to pre_workdir_checkout and post_workdir_checkout.
     """
-    pre_workdir_checkout.dispatch(revision=revision)
+    signals.pre_workdir_prepare_checkout.send(
+        sender=workdir_prepare_checkout,
+        revision=revision,
+    )
 
     workdir = tempfile.mkdtemp()
 
@@ -34,7 +38,11 @@ def workdir_prepare_checkout(revision, folders):
         local("git archive %s %s | tar -x -C %s" %
               (revision, " ".join(folders), workdir))
 
-        post_workdir_checkout.dispatch(revision=revision, workdir=workdir)
+        signals.post_workdir_prepare_checkout.send(
+            sender=workdir_prepare_checkout,
+            revision=revision,
+            workdir=workdir,
+        )
 
     return workdir
 
@@ -56,11 +64,21 @@ def remote_resolve_current_revision():
     Returns the locally resolved currently active remote revision.
     """
     revision = None
-    with cd(env.django_settings.versions_dir):
-        with settings(hide("stderr", "running", "stdout", "warnings"),
-                      warn_only=True):
-            revision = run("readlink current")
-    revision = revision.rstrip("/") or None
+
+    with settings(hide("stderr", "running", "stdout", "warnings"),
+                  warn_only=True):
+
+        # make sure version_dir exists
+        if not fabric_files.exists(env.django_settings.versions_dir):
+            run("mkdir -p %(versions_dir)s" % env.django_settings)
+
+        # try to resolve current symlink
+        with cd(env.django_settings.versions_dir):
+            if fabric_files.exists("current"):
+                revision = run("readlink current")
+
+                if not revision.failed:
+                    revision = revision.rstrip("/")
 
     if revision:
         return local_resolve_revision(revision)

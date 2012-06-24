@@ -19,3 +19,7 @@ post_remote_activate_revision = Signal()
 
 pre_remote_reload = Signal()
 post_remote_reload = Signal()
+
+
+pre_remote_init_virtualenv = Signal()
+post_remote_init_virtualenv = Signal()
