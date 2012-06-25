@@ -1,3 +1,5 @@
-Repo for standardizing fabfile for various projects types (e.g django, wordpress, etc)
+fabric-coat is a standarized method of deploying django based sites to wsgi
+based environments.
 
-
+It has the advantage of having a loose coupling with git, which means that it
+can be used to deploy on hosts without git.
