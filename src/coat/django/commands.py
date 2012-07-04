@@ -17,7 +17,14 @@ from coat.django import signals
 def copy_revision_to_remote(workdir, remote_revision, deploy_revision):
     # test remote for the revision and skip re-copying already
     # existing revisions
-    if fabric_files.exists("%s/%s" % (env.django_settings.versions_dir,
+    remote_versions_dir = "%s/%s" % (
+        env.base_dir, env.django_settings.versions_dir
+    )
+
+    if not fabric_files.exists(remote_versions_dir):
+        run("mkdir -p %s" % remote_versions_dir)
+
+    if fabric_files.exists("%s/%s" % (remote_versions_dir,
                                       deploy_revision)):
         return
 
@@ -25,7 +32,7 @@ def copy_revision_to_remote(workdir, remote_revision, deploy_revision):
     # space for unmodified files
     rsync_cmd = ("%s/* %s@%%s:%s/%s/" %
                  (workdir, env.user,
-                  env.django_settings.versions_dir,
+                  remote_versions_dir,
                   deploy_revision))
 
     signals.pre_workdir_copy_to_remote.send(
@@ -36,7 +43,7 @@ def copy_revision_to_remote(workdir, remote_revision, deploy_revision):
     )
 
     if remote_revision:
-        with cd(env.django_settings.versions_dir):
+        with cd("%s/%s" % remote_versions_dir):
             run("rsync -a --link-dest=../%(cur)s/ %(cur)s/ %(new)s" %
                 {'cur': remote_revision, 'new': deploy_revision})
 
@@ -60,7 +67,9 @@ def remote_activate_revision(workdir, remote_revision, deploy_revision):
         env.base_dir, env.virtualenv_settings.env_dir
     )
 
-    remote_versions_dir = env.django_settings.versions_dir
+    remote_versions_dir = "%s/%s" % (
+        env.base_dir, env.django_settings.versions_dir
+    )
 
     signals.pre_remote_run_commands.send(
         sender=remote_activate_revision,
@@ -115,7 +124,7 @@ def remote_reload():
     signals.pre_remote_reload.send(sender=remote_reload)
 
     if env.django_settings.wsgi_file:
-        run("touch %s" % env.django_settings.wsgi_file)
+        run("touch %s/%s" % (env.base_dir, env.django_settings.wsgi_file))
 
     signals.post_remote_reload.send(sender=remote_reload)
 
@@ -133,10 +142,7 @@ def workdir_django_prepare(workdir):
 
 
 def deploy(revision="HEAD"):
-    require("django_settings", provided_by=("env_test", "env_live"))
-
-    with settings(hide("everything")):
-        env.base_dir = run("pwd")
+    require("django_settings", "base_dir", "virtualenv_settings", provided_by=("env_test", "env_live"))
 
     env.django_settings.validate_or_abort()
     env.virtualenv_settings.validate_or_abort()

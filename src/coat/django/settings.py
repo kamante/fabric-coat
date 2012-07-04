@@ -41,15 +41,10 @@ class DjangoSettings(Settings):
     defaults = {
         'management_commands': DEFAULT_MANAGEMENT_COMMANDS,
         'versions_dir': 'app/versions',
-        'wsgi_file': (
-            "app/versions/current/django/"
-            "%(django_appname)s/"
-            "%(django_appname)s/wsgi.py"
-        ),
     }
 
     required = {
-        'django_appname': MinLengthValidator(1),
+        'wsgi_file': MinLengthValidator(1),
         'settings_file': RegexValidator(
             "^localsettings_(\w+)\.py$",
             "localsettings file must be defined and named localsettings_ENV.py"
