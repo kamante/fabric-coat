@@ -59,6 +59,16 @@ def local_resolve_revision(revision):
     return revision
 
 
+def remote_absolute_path(path):
+    """
+    Returns an absolute path built of joining remote_pwd and base_dir with
+    path. If either is an absolute path, it will be used returned.
+
+    Must be used everywhere a remote path is used.
+    """
+    return os.path.join(env.remote_pwd, env.base_dir, path)
+
+
 def remote_resolve_current_revision():
     """
     Returns the locally resolved currently active remote revision.
@@ -69,11 +79,13 @@ def remote_resolve_current_revision():
                   warn_only=True):
 
         # make sure version_dir exists
-        if not fabric_files.exists(env.django_settings.versions_dir):
-            run("mkdir -p %(versions_dir)s" % env.django_settings)
+        versions_dir = remote_absolute_path(env.django_settings.versions_dir)
+
+        if not fabric_files.exists(versions_dir):
+            run("mkdir -p %(versions_dir)s" % versions_dir)
 
         # try to resolve current symlink
-        with cd(env.django_settings.versions_dir):
+        with cd(versions_dir):
             if fabric_files.exists("current"):
                 revision = run("readlink current")
 
