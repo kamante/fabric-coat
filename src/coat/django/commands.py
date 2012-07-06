@@ -15,25 +15,25 @@ from coat.django import signals
 
 
 def copy_revision_to_remote(workdir, remote_revision, deploy_revision):
-    # test remote for the revision and skip re-copying already
-    # existing revisions
-    remote_versions_dir = "%s/%s" % (
-        env.base_dir, env.django_settings.versions_dir
+    remote_versions_dir = coat_utils.remote_absolute_path(
+        env.django_settings.versions_dir
     )
 
     if not fabric_files.exists(remote_versions_dir):
         run("mkdir -p %s" % remote_versions_dir)
 
-    if fabric_files.exists("%s/%s" % (remote_versions_dir,
-                                      deploy_revision)):
+    remote_deploy_dir = "%s/%s" % (remote_versions_dir, deploy_revision)
+
+    # test remote for the revision and skip re-copying already
+    # existing revisions
+    if fabric_files.exists("%s/%s" % remote_deploy_dir):
         return
 
     # copy all of local onto remote using rsync, use hard links to save
     # space for unmodified files
-    rsync_cmd = ("%s/* %s@%%s:%s/%s/" %
-                 (workdir, env.user,
-                  remote_versions_dir,
-                  deploy_revision))
+    rsync_cmd = ("%s/* %s@%%s:%s/" %
+                 (workdir, env.user, remote_deploy_dir)
+                )
 
     signals.pre_workdir_copy_to_remote.send(
         sender=copy_revision_to_remote,
@@ -124,7 +124,7 @@ def remote_reload():
     signals.pre_remote_reload.send(sender=remote_reload)
 
     if env.django_settings.wsgi_file:
-        run("touch %s/%s" % (env.base_dir, env.django_settings.wsgi_file))
+        run("touch %s" % remote_absolute_path(env.django_settings.wsgi_file))
 
     signals.post_remote_reload.send(sender=remote_reload)
 
@@ -143,6 +143,8 @@ def workdir_django_prepare(workdir):
 
 def deploy(revision="HEAD"):
     require("django_settings", "base_dir", "virtualenv_settings", provided_by=("env_test", "env_live"))
+
+    env.remote_pwd = run("pwd")
 
     env.django_settings.validate_or_abort()
     env.virtualenv_settings.validate_or_abort()
