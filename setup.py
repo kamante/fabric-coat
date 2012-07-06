@@ -9,7 +9,7 @@ def read(filename):
 
 setup(
     name="fabric-coat",
-    version="0.4.1",
+    version="0.4.2",
     author="Rasmus Schlünsen, Mads Sülau Jørgensen",
     author_email="rs@konstellation.dk, msj@konstellation.dk",
     description=("Deployment helpers for fabric"),
@@ -19,5 +19,5 @@ setup(
     packages=find_packages('src'),
     long_description=read('README'),
     package_dir={'': 'src'},
-    install_requires=['fabric >= 1.3', 'django'],
+    install_requires=['fabric >= 1.3', 'pydispatcher'],
 )

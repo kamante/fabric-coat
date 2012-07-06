@@ -3,6 +3,7 @@ import atexit
 import shutil
 import tempfile
 
+from pydispatch import dispatcher
 from fabric.state import env
 from fabric.api import lcd, local, hide, settings, cd, run
 from fabric.contrib import files as fabric_files
@@ -25,7 +26,8 @@ def workdir_prepare_checkout(revision, folders):
 
     Dispatches signals to pre_workdir_checkout and post_workdir_checkout.
     """
-    signals.pre_workdir_prepare_checkout.send(
+    dispatcher.send(
+        signal=signals.pre_workdir_prepare_checkout,
         sender=workdir_prepare_checkout,
         revision=revision,
     )
@@ -38,7 +40,8 @@ def workdir_prepare_checkout(revision, folders):
         local("git archive %s %s | tar -x -C %s" %
               (revision, " ".join(folders), workdir))
 
-        signals.post_workdir_prepare_checkout.send(
+        dispatcher.send(
+            signal=signals.post_workdir_prepare_checkout,
             sender=workdir_prepare_checkout,
             revision=revision,
             workdir=workdir,
@@ -82,7 +85,7 @@ def remote_resolve_current_revision():
         versions_dir = remote_absolute_path(env.django_settings.versions_dir)
 
         if not fabric_files.exists(versions_dir):
-            run("mkdir -p %(versions_dir)s" % versions_dir)
+            run("mkdir -p %s" % versions_dir)
 
         # try to resolve current symlink
         with cd(versions_dir):

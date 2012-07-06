@@ -4,6 +4,7 @@ import os
 import shutil
 import glob
 
+from pydispatch import dispatcher
 from fabric.api import run, local, cd, settings, prefix, hide
 from fabric.operations import require
 from fabric.state import env
@@ -26,16 +27,17 @@ def copy_revision_to_remote(workdir, remote_revision, deploy_revision):
 
     # test remote for the revision and skip re-copying already
     # existing revisions
-    if fabric_files.exists("%s/%s" % remote_deploy_dir):
+    if fabric_files.exists("%s" % remote_deploy_dir):
         return
 
     # copy all of local onto remote using rsync, use hard links to save
     # space for unmodified files
     rsync_cmd = ("%s/* %s@%%s:%s/" %
-                 (workdir, env.user, remote_deploy_dir)
-                )
+        (workdir, env.user, remote_deploy_dir)
+    )
 
-    signals.pre_workdir_copy_to_remote.send(
+    dispatcher.send(
+        signal=signals.pre_workdir_copy_to_remote,
         sender=copy_revision_to_remote,
         deploy_revision=deploy_revision,
         remote_revision=remote_revision,
@@ -54,7 +56,8 @@ def copy_revision_to_remote(workdir, remote_revision, deploy_revision):
     for host in env.hosts:
         local("rsync %s" % (rsync_cmd % host))
 
-    signals.post_workdir_copy_to_remote.send(
+    dispatcher.send(
+        signal=signals.post_workdir_copy_to_remote,
         sender=copy_revision_to_remote,
         deploy_revision=deploy_revision,
         remote_revision=remote_revision,
@@ -71,21 +74,25 @@ def remote_activate_revision(workdir, remote_revision, deploy_revision):
         env.base_dir, env.django_settings.versions_dir
     )
 
-    signals.pre_remote_run_commands.send(
+    dispatcher.send(
+        signal=signals.pre_remote_run_commands,
         sender=remote_activate_revision,
     )
 
     # initialize virtualenv if non-existant
     if not fabric_files.exists(remote_virtualenv_dir):
-        signals.pre_remote_init_virtualenv.send(
+        dispatcher.send(
+            signal=signals.pre_remote_init_virtualenv,
             sender=remote_activate_revision
         )
 
-        for command in env.virtualenv_settings.init_commands:
-            run(command)
+        with cd(env.base_dir):
+            for command in env.virtualenv_settings.init_commands:
+                run(command)
 
-        signals.post_remote_init_virtualenv.send(
-            sender=remote_activate_revision
+        dispatcher.send(
+            signal=signals.post_remote_init_virtualenv,
+            sender=remote_activate_revision,
         )
 
     # find relative path to manage.py
@@ -101,11 +108,13 @@ def remote_activate_revision(workdir, remote_revision, deploy_revision):
                 remote_virtualenv_dir, django_manage_path, command
             ))
 
-    signals.post_remote_run_commands.send(
+    dispatcher.send(
+        signal=signals.post_remote_run_commands,
         sender=remote_activate_revision,
     )
 
-    signals.pre_remote_activate_revision.send(
+    dispatcher.send(
+        signal=signals.pre_remote_activate_revision,
         sender=remote_activate_revision,
     )
 
@@ -115,18 +124,27 @@ def remote_activate_revision(workdir, remote_revision, deploy_revision):
 
         run("ln -s %s current" % deploy_revision)
 
-    signals.post_remote_activate_revision.send(
+    dispatcher.send(
+        signal=signals.post_remote_activate_revision,
         sender=remote_activate_revision,
     )
 
 
 def remote_reload():
-    signals.pre_remote_reload.send(sender=remote_reload)
+    dispatcher.send(
+       signal=signals.pre_remote_reload,
+       sender=remote_reload,
+    )
 
     if env.django_settings.wsgi_file:
-        run("touch %s" % remote_absolute_path(env.django_settings.wsgi_file))
+        run("touch %s" %
+            coat_utils.remote_absolute_path(env.django_settings.wsgi_file)
+        )
 
-    signals.post_remote_reload.send(sender=remote_reload)
+    dispatcher.send(
+        signal=signals.post_remote_reload,
+        sender=remote_reload,
+    )
 
 
 def workdir_django_prepare(workdir):
@@ -142,7 +160,8 @@ def workdir_django_prepare(workdir):
 
 
 def deploy(revision="HEAD"):
-    require("django_settings", "base_dir", "virtualenv_settings", provided_by=("env_test", "env_live"))
+    require("django_settings", "base_dir", "virtualenv_settings",
+            provided_by=("env_test", "env_live"))
 
     env.remote_pwd = run("pwd")
 
