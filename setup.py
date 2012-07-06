@@ -1,6 +1,6 @@
 #coding: utf-8
 import os
-from setuptools import setup
+from setuptools import setup, find_packages
 
 
 def read(filename):
@@ -16,7 +16,7 @@ setup(
     license="BSD",
     keywords="fabric coat deployment rsync helper",
     url="https://bitbucket.org/madssj/fabric-coat",
-    packages=['coat', ],
+    packages=find_packages('src/'),
     long_description=read('README'),
     package_dir={'': 'src'},
     install_requires=['fabric >= 1.3', 'django'],
