@@ -45,7 +45,7 @@ def copy_revision_to_remote(workdir, remote_revision, deploy_revision):
     )
 
     if remote_revision:
-        with cd("%s/%s" % remote_versions_dir):
+        with cd("%s" % remote_versions_dir):
             run("rsync -a --link-dest=../%(cur)s/ %(cur)s/ %(new)s" %
                 {'cur': remote_revision, 'new': deploy_revision})
 
