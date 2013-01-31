@@ -54,6 +54,13 @@ def copy_revision_to_remote(workdir, remote_revision, deploy_revision):
         rsync_cmd = "-a " + rsync_cmd
 
     for host in env.hosts:
+        port = env.port
+
+        if ":" in host:
+            host, port = host.rsplit(":", 1)
+
+        rsync_cmd += " --rsh='ssh -p%s'" % port
+
         local("rsync %s" % (rsync_cmd % host))
 
     dispatcher.send(
