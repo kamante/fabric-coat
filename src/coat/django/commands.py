@@ -139,14 +139,14 @@ def remote_activate_revision(workdir, remote_revision, deploy_revision):
 
 def remote_reload():
     dispatcher.send(
-       signal=signals.pre_remote_reload,
-       sender=remote_reload,
+        signal=signals.pre_remote_reload,
+        sender=remote_reload,
     )
 
-    if env.django_settings.wsgi_file:
+    if getattr(env.django_settings, 'wsgi_file', False):
         run("touch %s" %
             coat_utils.remote_absolute_path(env.django_settings.wsgi_file)
-        )
+            )
 
     dispatcher.send(
         signal=signals.post_remote_reload,

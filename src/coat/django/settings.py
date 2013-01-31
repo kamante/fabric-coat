@@ -44,7 +44,6 @@ class DjangoSettings(Settings):
     }
 
     required = {
-        'wsgi_file': MinLengthValidator(1),
         'settings_file': RegexValidator(
             "^localsettings_(\w+)\.py$",
             "localsettings file must be defined and named localsettings_ENV.py"
