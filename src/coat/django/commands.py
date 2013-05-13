@@ -166,7 +166,7 @@ def workdir_django_prepare(workdir):
         map(os.unlink, glob.glob("%s/localsettings_*.py" % django_basedir))
 
 
-def deploy(revision="HEAD"):
+def deploy(revision="master"):
     require("django_settings", "base_dir", "virtualenv_settings",
             provided_by=("env_test", "env_live"))
 
