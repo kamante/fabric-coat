@@ -2,3 +2,7 @@
 .DS_STORE
 *.swo
 *.pyc
+dist/
+tests/
+fabric_coat.egg-info/
+src/fabric_coat.egg-info/
