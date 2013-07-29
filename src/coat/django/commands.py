@@ -106,7 +106,7 @@ def remote_activate_revision(workdir, remote_revision, deploy_revision):
     django_manage_path = find_manage(workdir).replace(workdir, "")[1:]
 
     with cd("%s/%s" % (remote_versions_dir, deploy_revision)):
-        with prefix("source %s/bin/activate" % remote_virtualenv_dir):
+        with prefix(env.virtualenv_settings.activator % remote_virtualenv_dir):
             for command in env.virtualenv_settings.commands:
                 run(command)
 
