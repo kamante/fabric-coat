@@ -12,7 +12,7 @@ class VirtualEnvSettings(Settings):
     """
     A settings object for a python virtualenv based envorinment.
     """
-    DEFAULT_ACTIVATOR = 'source %s/bin/activate'
+    DEFAULT_ACTIVATOR = 'source {dir}/bin/activate'
 
     DEFAULT_COMMANDS = [
         "pip -q install -r django/requirements.txt"
