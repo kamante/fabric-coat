@@ -14,7 +14,7 @@ from fabric.operations import require
 from fabric.contrib.console import confirm
 
 
-__all__ = ("deploy",) 
+__all__ = ("deploy",)
 
 def deploy(revision="master"):
     require('base_dir', provided_by=("env_test", "env_live"),
@@ -25,8 +25,8 @@ def deploy(revision="master"):
     with lcd(env.local_base_dir):
         local('git archive %s %s | tar -x -f- -C %s' % (revision, env.local_nodejs_path, deploy_archive_dir))
 
-    local('rsync -a %s/%s* %s@%s:%s/versions/current/%s' %
-          (deploy_archive_dir, env.local_nodejs_path, env.user, env.host,
+    local('rsync -avz -e "ssh -p %s" %s/%s* %s@%s:%s/versions/current/%s' %
+          (env.port, deploy_archive_dir, env.local_nodejs_path, env.user, env.host,
            env.base_dir, env.nodejs_path))
 
     with cd(os.path.join(env.base_dir, 'versions', 'current', env.nodejs_path, env.local_nodejs_path)):
